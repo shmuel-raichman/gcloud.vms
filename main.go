@@ -24,10 +24,16 @@ func main(){
 	}
 
 	action := argv[1]
-
+	
 	projectID := "shmulik-general-dev"
 	instanceName := "ester-wp"
 	zone := "us-central1-a"
+
+	if len(argv) == 3 {
+		instanceName = argv[2]
+	}
+
+	fmt.Println(instanceName)
 	// prefix := "https://www.googleapis.com/compute/v1/projects/" + projectID
 
 	fmt.Println("Starting my app...")
