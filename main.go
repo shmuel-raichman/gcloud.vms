@@ -6,14 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
-	// "io/ioutil"
-
 	compute "google.golang.org/api/compute/v1"
-	// "google.golang.org/api/googleapi"
-	// "google.golang.org/api/internal/gensupport"
 	"google.golang.org/api/option"
-	// "google.golang.org/api/option/internaloption"
-	// "google.golang.org/api/transport/http"
 )
 
 func main(){
@@ -34,7 +28,6 @@ func main(){
 	}
 
 	fmt.Println(instanceName)
-	// prefix := "https://www.googleapis.com/compute/v1/projects/" + projectID
 
 	fmt.Println("Starting my app...")
 	jsonPath := "./resources/shmulik-general-dev.json"
@@ -62,12 +55,6 @@ func main(){
 		log.Println("Action must be supplied - start, stop, status")
 	}
 
-		
-	
-	// getVMs(computeService, projectID, zone)
-	// stopVM(computeService, projectID, zone, instanceName)
-	// getVMs(computeService, projectID, zone)
-	// getVMStatus(computeService, projectID, zone, instanceName)
 }
 
 func startVM(computeService *compute.Service, instanceName string, projectID string, zone string) {
@@ -78,8 +65,6 @@ func startVM(computeService *compute.Service, instanceName string, projectID str
 
 	fmt.Println("Starting vm: ", instanceName)
 	fmt.Println("Start status: ", res.Status)
-
-	// getVMStatus(computeService, projectID, zone, instanceName)
 }
 
 
