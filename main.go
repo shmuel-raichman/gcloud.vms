@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	// "io/ioutil"
 
 	compute "google.golang.org/api/compute/v1"
@@ -16,6 +17,14 @@ import (
 )
 
 func main(){
+	argv := os.Args
+	if len(argv) < 2 {
+		fmt.Fprintln(os.Stderr, "Usage: action must be supplied - start, stop, status")
+		return
+	}
+
+	action := argv[1]
+
 	projectID := "shmulik-general-dev"
 	instanceName := "ester-wp"
 	zone := "us-central1-a"
@@ -29,7 +38,26 @@ func main(){
 		log.Fatal(err)
 	}
 
-	startVM(computeService, projectID, zone, instanceName)
+	switch action {
+	case "start":
+		log.Println("action: ", action)
+		startVM(computeService, projectID, zone, instanceName)
+		getVMStatus(computeService, projectID, zone, instanceName)
+	case "stop":
+		log.Println("action: ", action)
+		stopVM(computeService, projectID, zone, instanceName)
+		getVMStatus(computeService, projectID, zone, instanceName)
+	case "status":
+		log.Println("action: ", action)
+		getVMStatus(computeService, projectID, zone, instanceName)
+		getVMs(computeService, projectID, zone)
+	default:
+		log.Println("action: ", action)
+		log.Println("Action must be supplied - start, stop, status")
+	}
+
+		
+	
 	// getVMs(computeService, projectID, zone)
 	// stopVM(computeService, projectID, zone, instanceName)
 	// getVMs(computeService, projectID, zone)
@@ -41,21 +69,11 @@ func startVM(computeService *compute.Service, instanceName string, projectID str
 	if err != nil {
 		log.Println(err)
 	}
-	// fmt.Println(res)
+
 	fmt.Println("Starting vm: ", instanceName)
 	fmt.Println("Start status: ", res.Status)
-	// etag := res.Header.Get("etag")
 
-	// fmt.Println("")
-	// inst, err := computeService.Instances.Get(instanceName, projectID, zone).Do()
-	// inst, err := computeService.Instances.Get(instanceName, projectID, zone).IfNoneMatch(etag).Do()
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	getVMStatus(computeService, projectID, zone, instanceName)
-	// inst, err := computeService.Instances.Get(instanceName, projectID, zone).IfNoneMatch(etag).Do()
-
-	// log.Printf("Got compute.Instance, err: %#v, %v", inst.Name, inst.Status)
+	// getVMStatus(computeService, projectID, zone, instanceName)
 }
 
 
@@ -64,7 +82,20 @@ func stopVM(computeService *compute.Service, instanceName string, projectID stri
 	if err != nil {
 		log.Println(err)
 	}
-	fmt.Println("Stop vm res", res.Status)
+	fmt.Println("Starting vm: ", instanceName)
+	fmt.Println("Stop status: ", res.Status)
+	// ctx := context.Background()
+	// // getVMStatus(computeService, projectID, zone, instanceName)
+	// insta, err := computeService.Instances.Get(projectID, zone, instanceName).IfNoneMatch(etag).Context(ctx).Do()
+	// // res, err := computeService.Instances.Get(projectID, instanceName, zone).Do()
+	// // res, err := computeService.Instances.Get(zone, projectID, instanceName).Do()
+	// // res, err := computeService.Instances.Get(zone, instanceName, projectID).Do()
+	// // res, err := computeService.Instances.Get(instanceName, zone, projectID).Do()
+	// // res, err := computeService.Instances.Get(instanceName, projectID, zone).Do()
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+	// fmt.Println(insta.Status)
 }
 
 func getVMs(computeService *compute.Service, projectID string, zone string){
@@ -80,7 +111,15 @@ func getVMs(computeService *compute.Service, projectID string, zone string){
 
 
 func getVMStatus(computeService *compute.Service, projectID string, zone string, instanceName string){
-	res, _ := computeService.Instances.Get(projectID, zone, instanceName).Do()
+	res, err := computeService.Instances.Get(projectID, zone, instanceName).Do()
+	// res, err := computeService.Instances.Get(projectID, instanceName, zone).Do()
+	// res, err := computeService.Instances.Get(zone, projectID, instanceName).Do()
+	// res, err := computeService.Instances.Get(zone, instanceName, projectID).Do()
+	// res, err := computeService.Instances.Get(instanceName, zone, projectID).Do()
+	// res, err := computeService.Instances.Get(instanceName, projectID, zone).Do()
+	if err != nil {
+		log.Println(err)
+	}
+	// fmt.Println(res)
 	fmt.Println(res.Status)
-
 }
