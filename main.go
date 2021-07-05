@@ -6,53 +6,148 @@ import (
 	"fmt"
 	"log"
 	"os"
+
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
+
+	vms "smuel1414/gcloud.vms/vms"
 )
 
-func main(){
+var (
+	script string = `
+
+	export GITHUB_PASSWORD=` + os.Getenv("GITHUB_PASSWORD") + `
+	export GITHUB_USERNAME=` + os.Getenv("GITHUB_USERNAME") + `
+	export GITHUB_USERNAME=` + os.Getenv("GITHUB_INITAL_REPO") + `
+	export VM_GCLOUD_USER= ` + os.Getenv("VM_GCLOUD_USER") + `
+	export VM_SSH_USER= ` + os.Getenv("VM_SSH_USER") + `
+	export DOCKER_COMPOSE_VERSION= ` + os.Getenv("DOCKER_COMPOSE_VERSION") + `
+
+	sudo apt-get update -y
+	sudo apt-get install \
+	   apt-transport-https \
+	   ca-certificates \
+	   curl \
+	   gnupg \
+	   lsb-release -y
+	curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+	echo \
+  		"deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \
+  		$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+	sudo apt-get update -y 
+	sudo apt-get install docker-ce docker-ce-cli containerd.io -y 
+	sudo usermod -aG docker $VM_GCLOUD_USER 
+	sudo usermod -aG docker $VM_SSH_USER
+	sudo curl -L "https://github.com/docker/compose/releases/download/$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+	sudo apt-get install git tree -y
+	cd /opt
+	mkdir site
+	cd site
+	git clone https://$GITHUB_USERNAME:$GITHUB_PASSWORD@github.com/$GITHUB_USERNAME/$GITHUB_INITAL_REPO
+	echo "DONE INITIALIZING STARTUP SCRIPT"
+	`
+)
+
+func main() {
+
+	var usage string = "Usage: action must be supplied from - start, stop, status, create, delete"
 	argv := os.Args
 	if len(argv) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: action must be supplied - start, stop, status")
+		fmt.Fprintln(os.Stderr, usage)
 		return
 	}
 
-	action := argv[1]
-	
-	projectID := "shmulik-general-dev"
-	instanceName := "ester-wp"
-	zone := "us-central1-a"
+	var action string
+	var instanceName string = "my-vm"
 
-	if len(argv) == 3 {
+	switch len(argv) {
+	case 1:
+		log.Fatal(usage)
+	case 2:
+		action = argv[1]
+	case 3:
+		action = argv[1]
 		instanceName = argv[2]
+	default:
+		println(usage)
 	}
+
+	projectID := os.Getenv("GCLOUD_PROJECT_ID")
+	jsonPath := os.Getenv("GCLOUD_SERVICE_ACCOUNT_JSON_PATH")
+	zone := "us-central1-a"
 
 	fmt.Println(instanceName)
 
 	fmt.Println("Starting my app...")
-	jsonPath := "./resources/shmulik-general-dev.json"
 	ctx := context.Background()
 	computeService, err := compute.NewService(ctx, option.WithCredentialsFile(jsonPath))
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	scopesForInst := []string{
+		"https://www.googleapis.com/auth/devstorage.read_only",
+		"https://www.googleapis.com/auth/logging.write",
+		"https://www.googleapis.com/auth/monitoring.write",
+		"https://www.googleapis.com/auth/servicecontrol",
+		"https://www.googleapis.com/auth/service.management.readonly",
+		"https://www.googleapis.com/auth/trace.append",
+	}
+
+	instanceConfig := vms.InstanceConfig{
+		ProjectID:     projectID,
+		Zone:          zone,
+		Name:          instanceName,
+		StartupScript: script,
+		MachineType:   "g1-small",
+		ImageProject:  "debian-cloud",
+		ImageFamily:   "debian-10",
+		Scopes:        scopesForInst,
+	}
+
 	switch action {
 	case "start":
 		log.Println("action: ", action)
 		startVM(computeService, projectID, zone, instanceName)
-		getVMStatus(computeService, projectID, zone, instanceName)
+		if err := getVMStatus(computeService, projectID, zone, instanceConfig.Name); err != nil {
+			log.Fatal(err)
+		}
 	case "stop":
 		log.Println("action: ", action)
 		stopVM(computeService, projectID, zone, instanceName)
-		getVMStatus(computeService, projectID, zone, instanceName)
+		if err := getVMStatus(computeService, projectID, zone, instanceConfig.Name); err != nil {
+			log.Println(err)
+		}
+	case "status-all":
+		log.Println("action: ", action)
+		if err := getVMs(computeService, projectID, zone); err != nil {
+			log.Println(err)
+		}
 	case "status":
 		log.Println("action: ", action)
-		getVMStatus(computeService, projectID, zone, instanceName)
-		getVMs(computeService, projectID, zone)
+		if err := getVMStatus(computeService, projectID, zone, instanceConfig.Name); err != nil {
+			log.Println(err)
+		}
+	case "create":
+		log.Println("action: ", action)
+		vms.CreateInstance(computeService, ctx, &instanceConfig)
+		err := vms.PollForSerialOutput(computeService, ctx, &instanceConfig, "DONE INITIALIZING STARTUP SCRIPT", "error is now")
+		if err != nil {
+			log.Println(err)
+		}
+		if err := getVMStatus(computeService, projectID, zone, instanceConfig.Name); err != nil {
+			log.Fatal(err)
+		}
+	case "delete":
+		log.Println("action: ", action)
+		vms.DeleteInstance(computeService, ctx, &instanceConfig)
+		if err := getVMStatus(computeService, projectID, zone, instanceConfig.Name); err != nil {
+			log.Println(err)
+		}
+
 	default:
 		log.Println("action: ", action)
-		log.Println("Action must be supplied - start, stop, status")
+		log.Println(usage)
 	}
 
 }
@@ -67,7 +162,6 @@ func startVM(computeService *compute.Service, instanceName string, projectID str
 	fmt.Println("Start status: ", res.Status)
 }
 
-
 func stopVM(computeService *compute.Service, instanceName string, projectID string, zone string) {
 	res, err := computeService.Instances.Stop(instanceName, projectID, zone).Do()
 	if err != nil {
@@ -75,42 +169,28 @@ func stopVM(computeService *compute.Service, instanceName string, projectID stri
 	}
 	fmt.Println("Starting vm: ", instanceName)
 	fmt.Println("Stop status: ", res.Status)
-	// ctx := context.Background()
-	// // getVMStatus(computeService, projectID, zone, instanceName)
-	// insta, err := computeService.Instances.Get(projectID, zone, instanceName).IfNoneMatch(etag).Context(ctx).Do()
-	// // res, err := computeService.Instances.Get(projectID, instanceName, zone).Do()
-	// // res, err := computeService.Instances.Get(zone, projectID, instanceName).Do()
-	// // res, err := computeService.Instances.Get(zone, instanceName, projectID).Do()
-	// // res, err := computeService.Instances.Get(instanceName, zone, projectID).Do()
-	// // res, err := computeService.Instances.Get(instanceName, projectID, zone).Do()
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// fmt.Println(insta.Status)
 }
 
-func getVMs(computeService *compute.Service, projectID string, zone string){
+func getVMs(computeService *compute.Service, projectID string, zone string) error {
 
-	res, _ := computeService.Instances.List(projectID, zone).Do()
+	list, err := computeService.Instances.List(projectID, zone).Do()
+	if err != nil {
+		return err
+	}
 
-	for _, vm := range res.Items {
+	for _, vm := range list.Items {
 		fmt.Print("VM Name is: ", vm.Name)
 		// fmt.Printf("%+v\n", vm)
 		fmt.Println(" - VM state is: ", vm.Status)
 	}
+	return nil
 }
 
-
-func getVMStatus(computeService *compute.Service, projectID string, zone string, instanceName string){
+func getVMStatus(computeService *compute.Service, projectID string, zone string, instanceName string) error {
 	res, err := computeService.Instances.Get(projectID, zone, instanceName).Do()
-	// res, err := computeService.Instances.Get(projectID, instanceName, zone).Do()
-	// res, err := computeService.Instances.Get(zone, projectID, instanceName).Do()
-	// res, err := computeService.Instances.Get(zone, instanceName, projectID).Do()
-	// res, err := computeService.Instances.Get(instanceName, zone, projectID).Do()
-	// res, err := computeService.Instances.Get(instanceName, projectID, zone).Do()
 	if err != nil {
-		log.Println(err)
+		return err
 	}
-	// fmt.Println(res)
-	fmt.Println(res.Status)
+	fmt.Println(instanceName, "IS: ", res.Status)
+	return nil
 }
