@@ -1,3 +1,4 @@
+// B"H
 package vms
 
 // InstanceConfig is configuration for starting single GCE instance for

@@ -1,10 +1,9 @@
+// B"H
 package vms
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
@@ -14,17 +13,7 @@ const (
 	monitorWriteScope = "https://www.googleapis.com/auth/monitoring.write"
 )
 
-// TestRunner has common elements used for testing profiling agents on a range
-// of environments.
-// type TestRunner struct {
-// 	Client *http.Client
-// }
-
-// // // GCETestRunner supports testing a profiling agent on GCE.
-// type GCETestRunner struct {
-// 	TestRunner
-// 	ComputeService *compute.Service
-// }
+// https://gitee.com/arohat/google-cloud-go/blob/v0.34.0/profiler/proftest/proftest.go
 
 // StartInstance starts a GCE Instance with configs specified by inst,
 // and which runs the startup script specified in inst. If image project
@@ -78,70 +67,5 @@ func CreateInstance(computeService *compute.Service, ctx context.Context, inst *
 		return fmt.Errorf("failed to create instance: %v", err)
 	}
 
-	// Poll status of the operation to create the instance.
-	// getOpCall := computeService.ZoneOperations.Get(inst.ProjectID, inst.Zone, op.Name)
-	// for {
-	// 	if err := checkOpErrors(op); err != nil {
-	// 		return fmt.Errorf("failed to create instance: %v", err)
-	// 	}
-	// 	if op.Status == "DONE" {
-	// 		return nil
-	// 	}
-
-	// 	if err := gax.Sleep(ctx, 5*time.Second); err != nil {
-	// 		return err
-	// 	}
-
-	// 	op, err = getOpCall.Do()
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to get operation: %v", err)
-	// 	}
-	// }
 	return waitForOperation(computeService, ctx, inst.ProjectID, inst.Zone, op)
 }
-
-// checkOpErrors returns nil if the operation does not have any errors and an
-// error summarizing all errors encountered if the operation has errored.
-func checkOpErrors(op *compute.Operation) error {
-	if op.Error == nil || len(op.Error.Errors) == 0 {
-		return nil
-	}
-
-	var errs []string
-	for _, e := range op.Error.Errors {
-		if e.Message != "" {
-			errs = append(errs, e.Message)
-		} else {
-			errs = append(errs, e.Code)
-		}
-	}
-	return errors.New(strings.Join(errs, ","))
-}
-
-// func waitForOperation(computeService *compute.Service, ctx context.Context, project, zone string, op *compute.Operation) error {
-// 	ticker := time.NewTicker(1 * time.Second)
-// 	defer ticker.Stop()
-
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			return fmt.Errorf("timeout waiting for operation to complete")
-// 		case <-ticker.C:
-// 			result, err := computeService.ZoneOperations.Get(project, zone, op.Name).Do()
-// 			if err != nil {
-// 				return fmt.Errorf("ZoneOperations.Get: %s", err)
-// 			}
-
-// 			if result.Status == "DONE" {
-// 				if result.Error != nil {
-// 					var errors []string
-// 					for _, e := range result.Error.Errors {
-// 						errors = append(errors, e.Message)
-// 					}
-// 					return fmt.Errorf("operation %q failed with error(s): %s", op.Name, strings.Join(errors, ", "))
-// 				}
-// 				return nil
-// 			}
-// 		}
-// 	}
-// }

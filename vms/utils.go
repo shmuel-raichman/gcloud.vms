@@ -1,3 +1,4 @@
+// B"H
 package vms
 
 import (
@@ -10,8 +11,7 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// https://gitee.com/arohat/google-cloud-go/blob/v0.34.0/profiler/proftest/proftest.go
-
+// https://github.com/googleapis/google-cloud-go/issues/178#issuecomment-489098739
 func waitForOperation(computeService *compute.Service, ctx context.Context, project, zone string, op *compute.Operation) error {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
