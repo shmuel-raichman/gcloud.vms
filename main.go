@@ -23,27 +23,19 @@ var (
 	export VM_SSH_USER= ` + os.Getenv("VM_SSH_USER") + `
 	export DOCKER_COMPOSE_VERSION= ` + os.Getenv("DOCKER_COMPOSE_VERSION") + `
 
-	sudo apt-get update -y
-	sudo apt-get install \
-	   apt-transport-https \
-	   ca-certificates \
-	   curl \
-	   gnupg \
-	   lsb-release -y
-	curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-	echo \
-  		"deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \
-  		$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-	sudo apt-get update -y 
-	sudo apt-get install docker-ce docker-ce-cli containerd.io -y 
-	sudo usermod -aG docker $VM_GCLOUD_USER 
-	sudo usermod -aG docker $VM_SSH_USER
-	sudo curl -L "https://github.com/docker/compose/releases/download/$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-	sudo apt-get install git tree -y
+	sudo apt-get install git tree vim -y
 	cd /opt
-	mkdir site
-	cd site
+	mkdir init
+	cd init
 	git clone https://$GITHUB_USERNAME:$GITHUB_PASSWORD@github.com/$GITHUB_USERNAME/$GITHUB_INITAL_REPO
+
+	cd $GITHUB_INITAL_REPO
+	chmod +x installdocker.sh
+	./installdocker.sh
+
+	sudo usermod -aG docker $VM_GCLOUD_USER
+	sudo usermod -aG docker $VM_SSH_USER
+
 	echo "DONE INITIALIZING STARTUP SCRIPT"
 	`
 )
@@ -176,6 +168,17 @@ func getVMs(computeService *compute.Service, projectID string, zone string) erro
 	list, err := computeService.Instances.List(projectID, zone).Do()
 	if err != nil {
 		return err
+	}
+
+	// listpretty, err := json.MarshalIndent(list, "", "    ")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//Marshal
+
+	if len(list.Items) == 0 {
+		fmt.Printf("No VMs in project: %s\n", projectID)
+		return nil
 	}
 
 	for _, vm := range list.Items {
