@@ -49,6 +49,9 @@ var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardButtonData("delete", `{"vm": "all", "action": "delete-list"}`),
 		tgbotapi.NewInlineKeyboardButtonData("Status List", `{"vm": "all", "action": "status-list"}`),
 	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Delete all", `{"vm": "all", "action": "delete-all"}`),
+	),
 )
 
 var scopesForInst = []string{
@@ -324,6 +327,42 @@ func doAction(bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAc
 		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
 		instanceConfig.Name = action.VM
 		vms.DeleteInstance(computeService, ctx, &instanceConfig)
+		status, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
+		if err != nil {
+			msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
+			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, msg.Text))
+			bot.Send(msg)
+			log.Println(err)
+			log.Println(msg.Text)
+		}
+		msg.Text = fmt.Sprintf("VM State is %s\n", status)
+		bot.Send(msg)
+	case "delete-all":
+		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
+
+		vmList, err := vms.GetVMs(computeService, instanceConfig.ProjectID, instanceConfig.Zone)
+		if err != nil {
+			log.Println(err)
+			msg.Text = err.Error()
+			bot.Send(msg)
+		}
+
+		for _, vm := range vmList {
+			instanceConfig.Name = vm.Name
+			vms.DeleteInstance(computeService, ctx, &instanceConfig)
+
+			status, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
+			if err != nil {
+				msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
+				bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, msg.Text))
+				bot.Send(msg)
+				log.Println(err)
+				log.Println(msg.Text)
+			}
+			msg.Text = fmt.Sprintf("VM State is %s\n", status)
+			bot.Send(msg)
+		}
+
 		status, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
 		if err != nil {
 			msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
