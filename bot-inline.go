@@ -94,7 +94,7 @@ func main() {
 
 			log.Println("Is CallbackQuery")
 
-			doAction(bot, &update, VMAction, ctx, computeService, instanceConfig)
+			doAction(gcloudbotConfig, bot, &update, VMAction, ctx, computeService, instanceConfig)
 		}
 		if update.Message != nil {
 			if !isAuthorized(bot, update.Message.Chat.ID, accountID) {
@@ -147,7 +147,7 @@ func isAuthorized(bot *tgbotapi.BotAPI, id int64, authID int64) bool {
 	return true
 }
 
-func doAction(bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAction, ctx context.Context, computeService *compute.Service, InstanceConfig vms.InstanceConfig) {
+func doAction(gcloudbotConfig gcloudbot.GcloudbotConfig, bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAction, ctx context.Context, computeService *compute.Service, InstanceConfig vms.InstanceConfig) {
 	chatID := update.CallbackQuery.Message.Chat.ID
 	msg := tgbotapi.NewMessage(chatID, "")
 	switch action.Action {
@@ -174,18 +174,9 @@ func doAction(bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAc
 		msg.Text = vmsState
 		bot.Send(msg)
 	case "status":
-		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
-		instanceConfig.Name = action.VM
-		status, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
-		if err != nil {
-			msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
-			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, msg.Text))
-			bot.Send(msg)
-			log.Println(err)
-			log.Println(msg.Text)
-		}
-		msg.Text = fmt.Sprintf("VM State is %s\n", status)
-		bot.Send(msg)
+
+		gcloudbotConfig.InstanceConfig.Name = action.VM
+		gcloudbot.StatusAndDetails(gcloudbotConfig)
 
 	case "delete-list":
 		msg := tgbotapi.NewMessage(chatID, "")
@@ -218,52 +209,11 @@ func doAction(bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAc
 		bot.Send(msg)
 		// bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 	case "status-list":
-		msg := tgbotapi.NewMessage(chatID, "")
-		vmList, err := vms.GetVMs(computeService, instanceConfig.ProjectID, instanceConfig.Zone)
-		if err != nil {
-			log.Println(err)
-			msg.Text = err.Error()
-			bot.Send(msg)
-		}
-
-		var row []tgbotapi.InlineKeyboardButton
-
-		for _, vm := range vmList {
-			str := `{"vm": "` + vm.Name + `", "action": "status"}`
-			vmBotten := tgbotapi.InlineKeyboardButton{
-				Text:         "Status: " + vm.Name,
-				CallbackData: &str,
-			}
-			row = append(row, vmBotten)
-		}
-
-		var vmListKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				row...,
-			),
-		)
-
-		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
-		msg.ReplyMarkup = vmListKeyboard
-		bot.Send(msg)
-		// bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
+		// List All instances
+		gcloudbot.StatusList(gcloudbotConfig)
 	case "delete":
-		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
-		instanceConfig.Name = action.VM
-		if instanceConfig.Name == os.Getenv("BOT_VM") {
-			break
-		}
-		vms.DeleteInstance(computeService, ctx, &instanceConfig)
-		_, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
-		if err != nil {
-			msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
-			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, err.Error()+fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)))
-			bot.Send(msg)
-			log.Println(err)
-			log.Println(msg.Text)
-		}
-		msg.Text = fmt.Sprintf("VM DELETED: ", instanceConfig.Name)
-		bot.Send(msg)
+		gcloudbotConfig.InstanceConfig.Name = action.VM
+		gcloudbot.Delete(gcloudbotConfig)
 	case "delete-all":
 		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
 
@@ -292,11 +242,6 @@ func doAction(bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAc
 			msg.Text = "Finished delete all vms"
 			bot.Send(msg)
 		}
-
-	case "create":
-		bot.Send(msg)
-		bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
-
 	default:
 
 	}

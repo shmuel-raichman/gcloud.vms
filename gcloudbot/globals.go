@@ -12,3 +12,5 @@ var NumericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardButtonData("Delete all", `{"vm": "all", "action": "delete-all"}`),
 	),
 )
+
+

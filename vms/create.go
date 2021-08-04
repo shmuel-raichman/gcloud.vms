@@ -48,8 +48,10 @@ func CreateInstance(computeService *compute.Service, ctx context.Context, inst *
 		NetworkInterfaces: []*compute.NetworkInterface{{
 			Network: fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s/global/networks/default", inst.ProjectID),
 			AccessConfigs: []*compute.AccessConfig{{
-				Name: "External NAT",
+				Name:        "External NAT",
+				NetworkTier: "STANDARD",
 			}},
+			Name: inst.Name + "-interface",
 		}},
 		Metadata: &compute.Metadata{
 			Items: []*compute.MetadataItems{{

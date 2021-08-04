@@ -46,6 +46,7 @@ func GetVMs(computeService *compute.Service, projectID string, zone string) ([]*
 		// fmt.Printf("%+v\n", vm)
 		fmt.Println(" - VM state is: ", vm.Status)
 	}
+
 	return list.Items, nil
 }
 

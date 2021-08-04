@@ -13,9 +13,10 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 
 	chatID := gcloudbotConfig.Update.Message.Chat.ID
 	msg := tgbotapi.NewMessage(chatID, "")
+	msg.ParseMode = "Markdown"
 
 	// First answer
-	msg.Text = fmt.Sprintf("You supplied the following instance name: **%s**", gcloudbotConfig.Update.Message.CommandArguments())
+	msg.Text = fmt.Sprintf("You supplied the following instance name: *%s*", gcloudbotConfig.Update.Message.CommandArguments())
 	log.Println(msg.Text)
 	gcloudbotConfig.Bot.Send(msg)
 	// Wait message
@@ -29,7 +30,7 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 	err := vms.CreateInstance(gcloudbotConfig.ComputeService, *gcloudbotConfig.Ctx, &gcloudbotConfig.InstanceConfig)
 	if err != nil {
 		// Define error message
-		msg.Text = fmt.Sprintf("Couldn't create Instance: **%s**\n%s", gcloudbotConfig.InstanceConfig.Name, err.Error())
+		msg.Text = fmt.Sprintf("Couldn't create Instance: *%s*\n%s", gcloudbotConfig.InstanceConfig.Name, err.Error())
 		// Log error
 		log.Println(msg.Text)
 		// Answer with error
@@ -37,7 +38,7 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 	}
 
 	// Wait message
-	msg.Text = fmt.Sprintf("Instance: **%s** created\n Wating for instance to start ...", gcloudbotConfig.InstanceConfig.Name)
+	msg.Text = fmt.Sprintf("Instance: *%s* created\n Wating for instance to start ...", gcloudbotConfig.InstanceConfig.Name)
 	log.Println(msg.Text)
 	gcloudbotConfig.Bot.Send(msg)
 
@@ -45,7 +46,7 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 	err = vms.PollForSerialOutput(gcloudbotConfig.ComputeService, *gcloudbotConfig.Ctx, &gcloudbotConfig.InstanceConfig, "DONE INITIALIZING STARTUP SCRIPT", "error is now")
 	if err != nil {
 		// Define error message
-		msg.Text = fmt.Sprintf("Faild waiting for Instance: **%s** serial port\n%s\n", gcloudbotConfig.InstanceConfig.Name, err.Error())
+		msg.Text = fmt.Sprintf("Faild waiting for Instance: *%s* serial port\n%s\n", gcloudbotConfig.InstanceConfig.Name, err.Error())
 		// Log error
 		log.Println(msg.Text)
 		// Answer with error
@@ -58,7 +59,7 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 		gcloudbotConfig.InstanceConfig.Name).Do()
 	if err != nil {
 		// Define error message
-		msg.Text = fmt.Sprintf("Faild getting Instance: **%s** state\n%s\n", gcloudbotConfig.InstanceConfig.Name, err.Error())
+		msg.Text = fmt.Sprintf("Faild getting Instance: *%s* state\n%s\n", gcloudbotConfig.InstanceConfig.Name, err.Error())
 		// Log error
 		log.Println(err)
 		// Answer with error
@@ -66,11 +67,11 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 	}
 
 	// results
-	msg.Text = fmt.Sprintf("Instance: **%s** created succesfuly\n", gcloudbotConfig.InstanceConfig.Name)
+	msg.Text = fmt.Sprintf("Instance: *%s* created succesfuly\n", gcloudbotConfig.InstanceConfig.Name)
 	log.Println(msg.Text)
 	gcloudbotConfig.Bot.Send(msg)
 
-	msg.Text = fmt.Sprintf("Created VM State is **%s**: ", instanceDetails.Status)
+	msg.Text = fmt.Sprintf("Created VM State is *%s*: ", instanceDetails.Status)
 	log.Println(msg.Text)
 	gcloudbotConfig.Bot.Send(msg)
 }
