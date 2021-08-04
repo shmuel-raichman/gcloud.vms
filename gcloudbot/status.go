@@ -6,7 +6,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-func StatusList(gcloudbotConfig GcloudbotConfig) {
+func StatusList(gcloudbotConfig GcloudbotConfig, action string) {
 
 	chatID := gcloudbotConfig.Update.CallbackQuery.Message.Chat.ID
 	msg := tgbotapi.NewMessage(chatID, "")
@@ -14,6 +14,9 @@ func StatusList(gcloudbotConfig GcloudbotConfig) {
 
 	var projectID string = gcloudbotConfig.InstanceConfig.ProjectID
 	var zone string = gcloudbotConfig.InstanceConfig.Zone
+
+	msgText := fmt.Sprintf("Getting instaces list for project: *%s*\n", projectID)
+	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 
 	list, err := gcloudbotConfig.ComputeService.Instances.List(projectID, zone).Do()
 	if err != nil {
@@ -32,9 +35,9 @@ func StatusList(gcloudbotConfig GcloudbotConfig) {
 
 	// Create inline keyboard rows
 	for _, vm := range list.Items {
-		str := `{"vm": "` + vm.Name + `", "action": "status"}`
+		str := `{"vm": "` + vm.Name + `", "action": "` + action + `"}`
 		vmBotten := tgbotapi.InlineKeyboardButton{
-			Text:         "Status: " + vm.Name,
+			Text:         fmt.Sprintf("%s: %s", action, vm.Name),
 			CallbackData: &str,
 		}
 		row = append(row, vmBotten)
@@ -48,7 +51,7 @@ func StatusList(gcloudbotConfig GcloudbotConfig) {
 	)
 
 	msg.ReplyMarkup = vmListKeyboard
-	msgText := fmt.Sprintf(gcloudbotConfig.Update.CallbackQuery.Data)
+	msgText = fmt.Sprintf("Json object \n```%s```\nList of instances for project: *%s*\n", gcloudbotConfig.Update.CallbackQuery.Data, projectID)
 	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 	// bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 }

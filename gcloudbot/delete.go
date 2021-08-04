@@ -28,7 +28,7 @@ func Delete(gcloudbotConfig GcloudbotConfig) {
 
 	err := vms.DeleteInstance(gcloudbotConfig.ComputeService, *gcloudbotConfig.Ctx, &gcloudbotConfig.InstanceConfig)
 	if err != nil {
-		msgText := fmt.Sprintf("Deleting instance - *%s* faild\n%s", instanceName, err.Error())
+		msgText := fmt.Sprintf("Deleting instance - *%s* faild\n%s\n\n", instanceName, err.Error())
 		SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 		return
 	}
@@ -37,32 +37,39 @@ func Delete(gcloudbotConfig GcloudbotConfig) {
 	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 }
 
-func DeleteAll() {
-	// msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
+func DeleteAll(gcloudbotConfig GcloudbotConfig) {
 
-	// vmList, err := vms.GetVMs(computeService, instanceConfig.ProjectID, instanceConfig.Zone)
-	// if err != nil {
-	// 	log.Println(err)
-	// 	msg.Text = err.Error()
-	// 	bot.Send(msg)
-	// }
+	chatID := gcloudbotConfig.Update.CallbackQuery.Message.Chat.ID
+	msg := tgbotapi.NewMessage(chatID, "")
+	msg.ParseMode = "Markdown"
 
-	// for _, vm := range vmList {
-	// 	instanceConfig.Name = vm.Name
-	// 	if instanceConfig.Name == os.Getenv("BOT_VM") {
-	// 		continue
-	// 	}
-	// 	vms.DeleteInstance(computeService, ctx, &instanceConfig)
+	var projectID string = gcloudbotConfig.InstanceConfig.ProjectID
+	var zone string = gcloudbotConfig.InstanceConfig.Zone
 
-	// 	_, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
-	// 	if err != nil {
-	// 		msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
-	// 		bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, msg.Text))
-	// 		bot.Send(msg)
-	// 		log.Println(err)
-	// 		log.Println(msg.Text)
-	// 	}
-	// 	msg.Text = "Finished delete all vms"
-	// 	bot.Send(msg)
-	// }
+	msgText := fmt.Sprintf("Getting instace list for project: *%s*\n", projectID)
+	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+
+	instances, err := gcloudbotConfig.ComputeService.Instances.List(projectID, zone).Do()
+	if err != nil {
+		msgText := fmt.Sprintf("Couldn't list instances for project: *%s*\n%s", projectID, err.Error())
+		SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+		return
+	}
+
+	if len(instances.Items) == 0 {
+		msgText := fmt.Sprintf("No instances to delete for project: *%s*\n", projectID)
+		SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+		return
+	}
+
+	msgText = fmt.Sprintf("Deleting all project - *%s* -  instances please wait ..\n", projectID)
+	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+
+	for _, instace := range instances.Items {
+		gcloudbotConfig.InstanceConfig.Name = instace.Name
+		Delete(gcloudbotConfig)
+	}
+
+	msgText = fmt.Sprintf("Finished deletion for project - *%s*\n", projectID)
+	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 }

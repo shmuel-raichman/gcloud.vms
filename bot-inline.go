@@ -174,74 +174,18 @@ func doAction(gcloudbotConfig gcloudbot.GcloudbotConfig, bot *tgbotapi.BotAPI, u
 		msg.Text = vmsState
 		bot.Send(msg)
 	case "status":
-
 		gcloudbotConfig.InstanceConfig.Name = action.VM
 		gcloudbot.StatusAndDetails(gcloudbotConfig)
-
 	case "delete-list":
-		msg := tgbotapi.NewMessage(chatID, "")
-		vmList, err := vms.GetVMs(computeService, instanceConfig.ProjectID, instanceConfig.Zone)
-		if err != nil {
-			log.Println(err)
-			msg.Text = err.Error()
-			bot.Send(msg)
-		}
-
-		var row []tgbotapi.InlineKeyboardButton
-
-		for _, vm := range vmList {
-			str := `{"vm": "` + vm.Name + `", "action": "delete"}`
-			vmBotten := tgbotapi.InlineKeyboardButton{
-				Text:         "Delete: " + vm.Name,
-				CallbackData: &str,
-			}
-			row = append(row, vmBotten)
-		}
-
-		var vmListKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				row...,
-			),
-		)
-
-		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
-		msg.ReplyMarkup = vmListKeyboard
-		bot.Send(msg)
-		// bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
+		gcloudbot.StatusList(gcloudbotConfig, "delete")
 	case "status-list":
 		// List All instances
-		gcloudbot.StatusList(gcloudbotConfig)
+		gcloudbot.StatusList(gcloudbotConfig, "status")
 	case "delete":
 		gcloudbotConfig.InstanceConfig.Name = action.VM
 		gcloudbot.Delete(gcloudbotConfig)
 	case "delete-all":
-		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
-
-		vmList, err := vms.GetVMs(computeService, instanceConfig.ProjectID, instanceConfig.Zone)
-		if err != nil {
-			log.Println(err)
-			msg.Text = err.Error()
-			bot.Send(msg)
-		}
-
-		for _, vm := range vmList {
-			instanceConfig.Name = vm.Name
-			if instanceConfig.Name == os.Getenv("BOT_VM") {
-				continue
-			}
-			vms.DeleteInstance(computeService, ctx, &instanceConfig)
-
-			_, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
-			if err != nil {
-				msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
-				bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, msg.Text))
-				bot.Send(msg)
-				log.Println(err)
-				log.Println(msg.Text)
-			}
-			msg.Text = "Finished delete all vms"
-			bot.Send(msg)
-		}
+		gcloudbot.DeleteAll(gcloudbotConfig)
 	default:
 
 	}

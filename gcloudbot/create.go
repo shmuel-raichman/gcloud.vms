@@ -16,16 +16,27 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 	msg.ParseMode = "Markdown"
 
 	// First answer
-	msg.Text = fmt.Sprintf("You supplied the following instance name: *%s*", gcloudbotConfig.Update.Message.CommandArguments())
-	log.Println(msg.Text)
-	gcloudbotConfig.Bot.Send(msg)
+	msgText := fmt.Sprintf("You supplied the following instance name: *%s*", gcloudbotConfig.Update.Message.CommandArguments())
+	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 	// Wait message
-	msg.Text = "Now creating your instance please wait ..."
-	log.Println(msg.Text)
-	gcloudbotConfig.Bot.Send(msg)
+	msgText = "Now creating your instance please wait ..."
+	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 
 	// TODO validate vm name
+	instanceName := gcloudbotConfig.Update.Message.CommandArguments()
+	// matched, err := regexp.MatchString(`(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)`, gcloudbotConfig.Update.Message.CommandArguments())
+	// if err != nil {
+	// 	msgText := fmt.Sprintf("Not creating instance, not matched regex\n%s", err)
+	// 	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+	// 	return
+	// }
+	if !(len(instanceName) > 0) {
+		msgText := "Not creating instance, Missing instance name"
+		SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+		return
+	}
 	gcloudbotConfig.InstanceConfig.Name = gcloudbotConfig.Update.Message.CommandArguments()
+
 	// Create VM
 	err := vms.CreateInstance(gcloudbotConfig.ComputeService, *gcloudbotConfig.Ctx, &gcloudbotConfig.InstanceConfig)
 	if err != nil {
@@ -35,6 +46,7 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 		log.Println(msg.Text)
 		// Answer with error
 		gcloudbotConfig.Bot.Send(msg)
+		return
 	}
 
 	// Wait message
@@ -51,6 +63,7 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 		log.Println(msg.Text)
 		// Answer with error
 		gcloudbotConfig.Bot.Send(msg)
+		return
 	}
 
 	// Get instance state
@@ -64,6 +77,7 @@ func BotCreateInstance(gcloudbotConfig GcloudbotConfig) {
 		log.Println(err)
 		// Answer with error
 		gcloudbotConfig.Bot.Send(msg)
+		return
 	}
 
 	// results
