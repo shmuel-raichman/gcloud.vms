@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"smuel1414/gcloud.vms/gcloudbot"
 	"smuel1414/gcloud.vms/structs"
 	"smuel1414/gcloud.vms/utils"
 	"smuel1414/gcloud.vms/vms"
@@ -16,62 +17,15 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-var (
-	script string = `
-
-	export GITHUB_PASSWORD=` + os.Getenv("GITHUB_PASSWORD") + `
-	export GITHUB_USERNAME=` + os.Getenv("GITHUB_USERNAME") + `
-	export GITHUB_USERNAME=` + os.Getenv("GITHUB_INITAL_REPO") + `
-	export VM_GCLOUD_USER= ` + os.Getenv("VM_GCLOUD_USER") + `
-	export VM_SSH_USER= ` + os.Getenv("VM_SSH_USER") + `
-	export DOCKER_COMPOSE_VERSION= ` + os.Getenv("DOCKER_COMPOSE_VERSION") + `
-
-	sudo apt-get install git tree vim -y
-	cd /opt
-	mkdir init
-	cd init
-	git clone https://$GITHUB_USERNAME:$GITHUB_PASSWORD@github.com/$GITHUB_USERNAME/$GITHUB_INITAL_REPO
-
-	cd $GITHUB_INITAL_REPO
-	chmod +x installdocker.sh
-	./installdocker.sh
-
-	sudo usermod -aG docker $VM_GCLOUD_USER
-	sudo usermod -aG docker $VM_SSH_USER
-
-	echo "DONE INITIALIZING STARTUP SCRIPT"
-	`
-)
-
-var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Status all", `{"vm": "all", "action": "status-all"}`),
-		tgbotapi.NewInlineKeyboardButtonData("delete", `{"vm": "all", "action": "delete-list"}`),
-		tgbotapi.NewInlineKeyboardButtonData("Status List", `{"vm": "all", "action": "status-list"}`),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Delete all", `{"vm": "all", "action": "delete-all"}`),
-	),
-)
-
-var scopesForInst = []string{
-	"https://www.googleapis.com/auth/devstorage.read_only",
-	"https://www.googleapis.com/auth/logging.write",
-	"https://www.googleapis.com/auth/monitoring.write",
-	"https://www.googleapis.com/auth/servicecontrol",
-	"https://www.googleapis.com/auth/service.management.readonly",
-	"https://www.googleapis.com/auth/trace.append",
-}
-
 var instanceConfig = vms.InstanceConfig{
 	ProjectID:     "projectID",
 	Zone:          "zone",
 	Name:          "instanceName",
-	StartupScript: script,
+	StartupScript: utils.Script,
 	MachineType:   "g1-small",
 	ImageProject:  "debian-cloud",
 	ImageFamily:   "debian-10",
-	Scopes:        scopesForInst,
+	Scopes:        utils.ScopesForInst,
 }
 
 func main() {
@@ -110,14 +64,23 @@ func main() {
 		log.Println(err)
 	}
 
+	gcloudbotConfig := gcloudbot.GcloudbotConfig{
+		ComputeService: computeService,
+		InstanceConfig: instanceConfig,
+		Ctx:            &ctx,
+		Bot:            bot,
+		Update:         nil,
+	}
+
 	fmt.Print(".")
 	for update := range updates {
+		gcloudbotConfig.Update = &update
 
 		if update.CallbackQuery != nil {
 			if !isAuthorized(bot, update.CallbackQuery.Message.Chat.ID, accountID) {
 				continue
 			}
-			fmt.Println(update.CallbackQuery.Message)
+			// fmt.Println(update.CallbackQuery.Message)
 
 			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 
@@ -141,7 +104,7 @@ func main() {
 
 			switch update.Message.Text {
 			case "open":
-				msg.ReplyMarkup = numericKeyboard
+				msg.ReplyMarkup = gcloudbot.NumericKeyboard
 
 			}
 
@@ -159,50 +122,11 @@ func main() {
 					msg.Text = "I'm ok."
 				case "options":
 					msg.Text = update.Message.Command()
-					msg.ReplyMarkup = numericKeyboard
+					msg.ReplyMarkup = gcloudbot.NumericKeyboard
 				case "clear":
 					updates.Clear()
 				case "create":
-					msg.Text = "You supplied the following argument: " + update.Message.CommandArguments()
-					instanceConfig.Name = update.Message.CommandArguments()
-					err := vms.CreateInstance(computeService, ctx, &instanceConfig)
-					if err != nil {
-						log.Println(err)
-					}
-
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-					vms.CreateInstance(computeService, ctx, &instanceConfig)
-					status, err := vms.GetVMStatus(computeService, projectID, zone, instanceConfig.Name)
-					if err != nil {
-						log.Println(err)
-						msg.Text = err.Error()
-						bot.Send(msg)
-						continue
-					}
-					msg.Text = fmt.Sprintf("VM State is %s", status)
-					bot.Send(msg)
-
-					err = vms.PollForSerialOutput(computeService, ctx, &instanceConfig, "DONE INITIALIZING STARTUP SCRIPT", "error is now")
-					if err != nil {
-						log.Println(err)
-						msg.Text = err.Error()
-						bot.Send(msg)
-						continue
-					}
-
-					msg.Text = fmt.Sprintf("Creating vm %s", instanceConfig.Name)
-					bot.Send(msg)
-
-					status, err = vms.GetVMStatus(computeService, projectID, zone, instanceConfig.Name)
-					if err != nil {
-						log.Println(err)
-						msg.Text = err.Error()
-						bot.Send(msg)
-						continue
-					}
-					msg.Text = fmt.Sprintf("VM State is %s", status)
-					bot.Send(msg)
-
+					gcloudbot.BotCreateInstance(gcloudbotConfig)
 				default:
 					msg.Text = "I don't know that command"
 				}
@@ -326,16 +250,19 @@ func doAction(bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAc
 	case "delete":
 		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
 		instanceConfig.Name = action.VM
+		if instanceConfig.Name == os.Getenv("BOT_VM") {
+			break
+		}
 		vms.DeleteInstance(computeService, ctx, &instanceConfig)
-		status, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
+		_, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
 		if err != nil {
 			msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
-			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, msg.Text))
+			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, err.Error()+fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)))
 			bot.Send(msg)
 			log.Println(err)
 			log.Println(msg.Text)
 		}
-		msg.Text = fmt.Sprintf("VM State is %s\n", status)
+		msg.Text = fmt.Sprintf("VM DELETED: ", instanceConfig.Name)
 		bot.Send(msg)
 	case "delete-all":
 		msg = tgbotapi.NewMessage(chatID, update.CallbackQuery.Data)
@@ -349,9 +276,12 @@ func doAction(bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAc
 
 		for _, vm := range vmList {
 			instanceConfig.Name = vm.Name
+			if instanceConfig.Name == os.Getenv("BOT_VM") {
+				continue
+			}
 			vms.DeleteInstance(computeService, ctx, &instanceConfig)
 
-			status, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
+			_, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
 			if err != nil {
 				msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
 				bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, msg.Text))
@@ -359,41 +289,11 @@ func doAction(bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAc
 				log.Println(err)
 				log.Println(msg.Text)
 			}
-			msg.Text = fmt.Sprintf("VM State is %s\n", status)
+			msg.Text = "Finished delete all vms"
 			bot.Send(msg)
 		}
 
-		status, err := vms.GetVMStatus(computeService, instanceConfig.ProjectID, instanceConfig.Zone, instanceConfig.Name)
-		if err != nil {
-			msg.Text = err.Error() + fmt.Sprintf("VM %s deleted succesfuly\n", instanceConfig.Name)
-			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, msg.Text))
-			bot.Send(msg)
-			log.Println(err)
-			log.Println(msg.Text)
-		}
-		msg.Text = fmt.Sprintf("VM State is %s\n", status)
-		bot.Send(msg)
 	case "create":
-		// vmList, err := vms.GetVMs(computeService, instanceConfig.ProjectID, instanceConfig.Zone)
-		// if err != nil {
-		// 	log.Println(err)
-		// 	msg.Text = err.Error()
-		// 	bot.Send(msg)
-		// }
-
-		// var row []tgbotapi.InlineKeyboardButton
-
-		// for _, vm := range vmList {
-		// 	vmBotten := tgbotapi.NewInlineKeyboardButtonData("Delete: "+vm.Name, `{"vm": "`+vm.Name+`", "action": "delete"}`)
-		// 	row = append(row, vmBotten)
-		// }
-
-		// var vmListKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-		// 	tgbotapi.NewInlineKeyboardRow(
-		// 		row...,
-		// 	),
-		// )
-		// msg.ReplyMarkup = vmListKeyboard
 		bot.Send(msg)
 		bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 
