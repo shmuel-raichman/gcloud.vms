@@ -3,6 +3,8 @@ package gcloudbot
 import (
 	"fmt"
 
+	"smuel1414/gcloud.vms/utils"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
@@ -56,6 +58,43 @@ func StatusList(gcloudbotConfig GcloudbotConfig, action string) {
 	// bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 }
 
+func ProjectInstanceStatus(gcloudbotConfig GcloudbotConfig) {
+
+	chatID := gcloudbotConfig.Update.CallbackQuery.Message.Chat.ID
+	msg := tgbotapi.NewMessage(chatID, "")
+	msg.ParseMode = "Markdown"
+
+	var projectID string = gcloudbotConfig.InstanceConfig.ProjectID
+	var zone string = gcloudbotConfig.InstanceConfig.Zone
+
+	msgText := fmt.Sprintf("Getting instaces list for project: *%s*\n", projectID)
+	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+
+	list, err := gcloudbotConfig.ComputeService.Instances.List(projectID, zone).Do()
+	if err != nil {
+		msgText := fmt.Sprintf("Couldn't list instances for project: *%s*\n%s", projectID, err.Error())
+		SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+		return
+	}
+
+	if len(list.Items) == 0 {
+		msgText := fmt.Sprintf("No VMs in project: *%s*\n", projectID)
+		SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
+		return
+	}
+
+	numberOfInstances := len(list.Items)
+	responseMsg := fmt.Sprintf("There are - %d - instances in project %s\n ---", numberOfInstances, projectID)
+	// Create inline keyboard rows
+	for _, instance := range list.Items {
+		responseMsg += fmt.Sprintf("\n- Instance: %s state is - %s", instance.Name, instance.Status)
+	}
+
+	// msgText = fmt.Sprintf("Json object \n``` %s```\nList of instances for project: *%s*\n", gcloudbotConfig.Update.CallbackQuery.Data, projectID)
+	SendAndLog(responseMsg, gcloudbotConfig.Bot, &msg)
+	// bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
+}
+
 func StatusAndDetails(gcloudbotConfig GcloudbotConfig) {
 	chatID := gcloudbotConfig.Update.CallbackQuery.Message.Chat.ID
 	msg := tgbotapi.NewMessage(chatID, gcloudbotConfig.Update.CallbackQuery.Data)
@@ -65,7 +104,7 @@ func StatusAndDetails(gcloudbotConfig GcloudbotConfig) {
 	var zone string = gcloudbotConfig.InstanceConfig.Zone
 	var instanceName string = gcloudbotConfig.InstanceConfig.Name
 
-	msgText := fmt.Sprintf("Getting instance: *%s* - please wait ...\n", instanceName)
+	msgText := fmt.Sprintf("Getting instance: *%s* - please wait ...%s\n", instanceName, utils.Drizzle)
 	SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 
 	instance, err := gcloudbotConfig.ComputeService.Instances.Get(projectID, zone, instanceName).Do()

@@ -44,7 +44,7 @@ func main() {
 	instanceConfig.Zone = zone
 
 	botToken, _ := utils.GetenvStr("BOT_TOKEN")
-	// workAccountID, _ := utils.GetenvInt64("MYWORKACCOUNT")
+	workAccountID, _ := utils.GetenvInt64("MYWORKACCOUNT")
 	accountID, _ := utils.GetenvInt64("MYACCOUNT")
 
 	bot, err := tgbotapi.NewBotAPI(botToken)
@@ -77,7 +77,11 @@ func main() {
 		gcloudbotConfig.Update = &update
 
 		if update.CallbackQuery != nil {
-			if !isAuthorized(bot, update.CallbackQuery.Message.Chat.ID, accountID) {
+			chatID := update.CallbackQuery.Message.Chat.ID
+			if chatID != accountID && chatID != workAccountID {
+				msg := tgbotapi.NewMessage(chatID, "")
+				msgText := fmt.Sprintf("isAuthorized: *%s*\nchatID-%d,wchatid%d-aID%d", projectID, chatID, workAccountID, accountID)
+				gcloudbot.SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 				continue
 			}
 			// fmt.Println(update.CallbackQuery.Message)
@@ -97,7 +101,12 @@ func main() {
 			doAction(gcloudbotConfig, bot, &update, VMAction, ctx, computeService, instanceConfig)
 		}
 		if update.Message != nil {
-			if !isAuthorized(bot, update.Message.Chat.ID, accountID) {
+			chatID := update.Message.Chat.ID
+
+			if chatID != accountID && chatID != workAccountID {
+				msg := tgbotapi.NewMessage(chatID, "")
+				msgText := fmt.Sprintf("isAuthorized: *%s*\nchatID-%d,wchatid%d-aID%d", projectID, chatID, workAccountID, accountID)
+				gcloudbot.SendAndLog(msgText, gcloudbotConfig.Bot, &msg)
 				continue
 			}
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
@@ -137,42 +146,22 @@ func main() {
 	}
 }
 
-func isAuthorized(bot *tgbotapi.BotAPI, id int64, authID int64) bool {
+func isAuthorized(id int64, authID int64) bool {
 	if id != authID {
-		msg := tgbotapi.NewMessage(id, "")
-		msg.Text = "Unauthorized"
-		bot.Send(msg)
+		// msg := tgbotapi.NewMessage(id, "")
+		// msg.Text = "Unauthorized"
+		// bot.Send(msg)
 		return false
 	}
 	return true
 }
 
 func doAction(gcloudbotConfig gcloudbot.GcloudbotConfig, bot *tgbotapi.BotAPI, update *tgbotapi.Update, action structs.VMAction, ctx context.Context, computeService *compute.Service, InstanceConfig vms.InstanceConfig) {
-	chatID := update.CallbackQuery.Message.Chat.ID
-	msg := tgbotapi.NewMessage(chatID, "")
+	// chatID := update.CallbackQuery.Message.Chat.ID
+	// msg := tgbotapi.NewMessage(chatID, "")
 	switch action.Action {
 	case "status-all":
-		vmList, err := vms.GetVMs(computeService, instanceConfig.ProjectID, instanceConfig.Zone)
-		if err != nil {
-			log.Println(err)
-			msg.Text = err.Error()
-			bot.Send(msg)
-		}
-
-		if len(vmList) == 0 {
-			msg.Text = fmt.Sprintf("No VMs for project: %s", instanceConfig.ProjectID)
-			bot.Send(msg)
-		}
-
-		// status := string[]
-		vmsState := ""
-
-		for _, vm := range vmList {
-			vmsState += fmt.Sprintf("%s - state is: %s\n", vm.Name, vm.Status)
-		}
-
-		msg.Text = vmsState
-		bot.Send(msg)
+		gcloudbot.ProjectInstanceStatus(gcloudbotConfig)
 	case "status":
 		gcloudbotConfig.InstanceConfig.Name = action.VM
 		gcloudbot.StatusAndDetails(gcloudbotConfig)
